@@ -58,7 +58,7 @@ def init() -> None:
         # Clear and reindex labels
         clear_label_embeddings()
         
-        embed_task = progress.add_task("[green]Indexing labels...", total=len(labels))
+        embed_task = progress.add_task("[green]Indexing styles...", total=len(labels))
         items = []
         for label in labels:
             embedding = encode_text(clip_model, clip_tokenizer, label)
