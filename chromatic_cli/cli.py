@@ -99,8 +99,8 @@ def write(
 
 @app.command()
 def index(
-    project_id: Optional[str] = typer.Option(None, "--project", help="Project ID to index. If not provided, indexes all unindexed pairs."),
-    build_id: Optional[str] = typer.Option(None, "--build", help="Build ID to index. If not provided, indexes all unindexed pairs."),
+    project_id: Optional[str] = typer.Option(None, "--project", help="Project ID to index. If not provided, indexes all unindexed builds."),
+    build_id: Optional[str] = typer.Option(None, "--build", help="Build ID to index. If not provided, indexes all unindexed builds."),
     temperature: float = typer.Option(
         0.05,
         "--temperature",
@@ -108,7 +108,7 @@ def index(
     ),
     limit: Optional[int] = typer.Option(None, "--limit", help="Maximum number of builds to index."),
 ) -> None:
-    """Index diffs to compute embeddings. If project/build not specified, indexes all unindexed pairs."""
+    """Index diffs to compute embeddings. If project/build not specified, indexes all unindexed builds."""
     # If both project_id and build_id are provided, index that specific pair
     if project_id is not None and build_id is not None:
         stats = index_diffs(project_id=project_id, build_id=build_id, temperature=temperature)
@@ -117,21 +117,21 @@ def index(
     
     # If only one is provided, that's an error
     if project_id is not None or build_id is not None:
-        raise typer.BadParameter("Must provide both --project and --build, or neither to index all unindexed pairs.")
+        raise typer.BadParameter("Must provide both --project and --build, or neither to index all unindexed builds.")
     
-    # Get all unindexed (project_id, build_id) pairs
-    unindexed_pairs = get_unindexed_project_build_pairs()
+    # Get all unindexed (project_id, build_id) builds
+    unindexed_builds = get_unindexed_project_build_pairs()
     
-    if not unindexed_pairs:
-        print_json(data={"message": "No unindexed project/build pairs found.", "processed": 0})
+    if not unindexed_builds:
+        print_json(data={"message": "No unindexed builds found.", "processed": 0})
         return
     
     # Apply limit to number of builds
     if limit is not None:
-        unindexed_pairs = unindexed_pairs[:limit]
+        unindexed_builds = unindexed_builds[:limit]
     
-    # Count total unindexed diffs across all pairs
-    total_diffs = sum(count_unindexed_diffs(p, b) for p, b in unindexed_pairs)
+    # Count total unindexed diffs across all builds
+    total_diffs = sum(count_unindexed_diffs(p, b) for p, b in unindexed_builds)
     
     all_stats = []
     with Progress(
@@ -143,11 +143,11 @@ def index(
     ) as progress:
         # Create a task for overall progress
         overall_task = progress.add_task(
-            f"[cyan]Indexing {len(unindexed_pairs)} project/build pairs ({total_diffs} diffs)...",
-            total=len(unindexed_pairs),
+            f"[cyan]Indexing {len(unindexed_builds)} builds ({total_diffs} diffs)...",
+            total=len(unindexed_builds),
         )
         
-        for proj_id, bld_id in unindexed_pairs:
+        for proj_id, bld_id in unindexed_builds:
             progress.update(overall_task, description=f"[cyan]Indexing {proj_id}/{bld_id}...")
             stats = index_diffs(project_id=proj_id, build_id=bld_id, temperature=temperature)
             all_stats.append({
@@ -159,8 +159,8 @@ def index(
     
     total_processed = sum(s.get("processed", 0) for s in all_stats)
     print_json(data={
-        "message": f"Indexed {len(unindexed_pairs)} project/build pairs",
-        "total_pairs": len(unindexed_pairs),
+        "message": f"Indexed {len(unindexed_builds)} builds",
+        "total_builds": len(unindexed_builds),
         "total_diffs_processed": total_processed,
         "details": all_stats,
     })

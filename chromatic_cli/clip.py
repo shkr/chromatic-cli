@@ -146,7 +146,8 @@ def load_clip_model():
 
         # Create base model architecture
         model, processor, tokenizer = open_clip.create_model_and_transforms(
-            "ViT-B-32"
+            "ViT-B-32",
+            pretrained="metaclip_fullcc",
         )
 
         # Load custom checkpoint
