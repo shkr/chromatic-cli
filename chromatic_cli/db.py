@@ -476,45 +476,53 @@ def get_unindexed_project_build_pairs() -> List[Tuple[str, str]]:
     return [(row["project_id"], row["build_id"]) for row in cursor.fetchall()]
 
 
-def get_project_build_pairs_with_status(project_id: Optional[str] = None, limit: int = 10) -> List[dict]:
-    """Get project/build pairs with their index status.
+def list_projects_with_limit(limit: int = 10) -> List[str]:
+    """Get distinct project IDs.
     
     Args:
-        project_id: Optional project ID to filter by
-        limit: Maximum number of pairs to return
+        limit: Maximum number of projects to return
         
     Returns:
-        List of dicts with project_id, build_id, and indexed (bool)
+        List of project IDs
     """
     conn = get_connection()
-    if project_id is not None:
-        cursor = conn.execute(
-            """
-            SELECT project_id, build_id, 
-                   CASE WHEN base_embedding IS NOT NULL THEN 1 ELSE 0 END as indexed
-            FROM project_build 
-            WHERE project_id = ?
-            GROUP BY project_id, build_id
-            ORDER BY build_id DESC
-            LIMIT ?
-            """,
-            (project_id, limit),
-        )
-    else:
-        cursor = conn.execute(
-            """
-            SELECT project_id, build_id,
-                   CASE WHEN base_embedding IS NOT NULL THEN 1 ELSE 0 END as indexed
-            FROM project_build 
-            GROUP BY project_id, build_id
-            ORDER BY project_id, build_id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        )
+    cursor = conn.execute(
+        """
+        SELECT DISTINCT project_id 
+        FROM project_build 
+        ORDER BY project_id
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    return [row["project_id"] for row in cursor.fetchall()]
+
+
+def list_builds_with_status(project_id: str, limit: int = 10) -> List[dict]:
+    """Get builds for a project with their index status.
+    
+    Args:
+        project_id: Project ID to filter by
+        limit: Maximum number of builds to return
+        
+    Returns:
+        List of dicts with build_id and indexed (bool)
+    """
+    conn = get_connection()
+    cursor = conn.execute(
+        """
+        SELECT build_id, 
+               CASE WHEN base_embedding IS NOT NULL THEN 1 ELSE 0 END as indexed
+        FROM project_build 
+        WHERE project_id = ?
+        GROUP BY build_id
+        ORDER BY build_id DESC
+        LIMIT ?
+        """,
+        (project_id, limit),
+    )
     return [
         {
-            "project_id": row["project_id"],
             "build_id": row["build_id"],
             "indexed": bool(row["indexed"]),
         }

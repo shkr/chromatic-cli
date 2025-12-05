@@ -8,7 +8,7 @@ from rich import print_json
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 from dotenv import load_dotenv  
 load_dotenv()
-from .db import list_diff_ids, bulk_insert_label_embeddings, clear_label_embeddings, count_label_embeddings, get_unindexed_project_build_pairs, count_unindexed_diffs, get_project_build_pairs_with_status
+from .db import list_diff_ids, bulk_insert_label_embeddings, clear_label_embeddings, count_label_embeddings, get_unindexed_project_build_pairs, count_unindexed_diffs, list_projects_with_limit, list_builds_with_status
 from .index import index_diffs
 from .write import write_datasets, write_json_record
 from .group import group_diffs
@@ -181,12 +181,16 @@ def group(
 
 @app.command("list")
 def list_cmd(
-    project_id: Optional[str] = typer.Option(None, "--project", help="Filter by project ID"),
-    limit: int = typer.Option(10, "--limit", help="Maximum number of pairs to return"),
+    project_id: Optional[str] = typer.Option(None, "--project", help="List builds for this project"),
+    limit: int = typer.Option(10, "--limit", help="Maximum number of results to return"),
 ) -> None:
-    """List project/build pairs with index status."""
-    pairs = get_project_build_pairs_with_status(project_id=project_id, limit=limit)
-    print_json(data={"pairs": pairs, "count": len(pairs)})
+    """List projects, or builds for a specific project."""
+    if project_id is not None:
+        builds = list_builds_with_status(project_id=project_id, limit=limit)
+        print_json(data={"project_id": project_id, "builds": builds, "count": len(builds)})
+    else:
+        projects = list_projects_with_limit(limit=limit)
+        print_json(data={"projects": projects, "count": len(projects)})
 
 
 @app.command("list-diffs")
