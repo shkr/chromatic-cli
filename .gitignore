@@ -12,3 +12,4 @@ s3
 cache
 output
 datasets
+*.db
