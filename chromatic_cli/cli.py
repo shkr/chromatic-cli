@@ -18,6 +18,66 @@ app = typer.Typer(help="Chromatic dataset CLI (Python implementation)")
 
 
 @app.command()
+def init() -> None:
+    """Initialize: download model weights and index labels."""
+    import csv
+    from .clip import get_clip_pipeline, encode_text
+    from .layout import get_layout_predictor
+    
+    labels_csv = Path(__file__).parent.parent / "datasets" / "labels.csv"
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+    ) as progress:
+        # Download and load CLIP model
+        clip_task = progress.add_task("[cyan]Downloading CLIP model...", total=None)
+        clip_model, _, clip_tokenizer = get_clip_pipeline()
+        progress.remove_task(clip_task)
+        print("[green]✓ CLIP model ready")
+        
+        # Download and load Layout model
+        layout_task = progress.add_task("[cyan]Downloading Layout model...", total=None)
+        get_layout_predictor()
+        progress.remove_task(layout_task)
+        print("[green]✓ Layout model ready")
+        
+        # Load and index labels
+        with open(labels_csv, 'r') as f:
+            reader = csv.DictReader(f)
+            labels = [row['text'] for row in reader if row.get('text', '').strip()]
+        
+        labels = list(set(labels))
+        if not labels:
+            print_json(data={"error": "No labels found in CSV file"})
+            return
+        
+        # Clear and reindex labels
+        clear_label_embeddings()
+        
+        embed_task = progress.add_task("[green]Indexing labels...", total=len(labels))
+        items = []
+        for label in labels:
+            embedding = encode_text(clip_model, clip_tokenizer, label)
+            items.append((label, embedding))
+            progress.update(embed_task, advance=1)
+        
+        bulk_insert_label_embeddings(items)
+    
+    total = count_label_embeddings()
+    print_json(data={
+        "status": "initialized",
+        "clip_model": "ready",
+        "layout_model": "ready", 
+        "labels_indexed": len(items),
+        "total_labels": total,
+    })
+
+
+@app.command()
 def write(
     file: Optional[List[str]] = typer.Option(
         None, "--file", "-f", help="Path(s) or globs to dataset JSON files"

@@ -85,6 +85,8 @@ def compute_label_distribution(vectors: np.ndarray, label_embeddings: np.ndarray
     Returns:
         L-dimensional vector representing the average label distribution
     """
+    if label_embeddings.size == 0:
+        return np.zeros(0)
     if vectors.size == 0:
         return np.zeros(label_embeddings.shape[0])
     
@@ -266,6 +268,8 @@ def index_diffs(
     async def _runner():
         processed = []
         label_embeddings, label_texts = get_label_embeddings()
+        if label_embeddings.size == 0:
+            raise ValueError("No label embeddings found. Run 'chromatic-cli index-labels --csv <file>' first.")
         for row in rows:
             count = await index_single(
                 row,

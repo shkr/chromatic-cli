@@ -19,6 +19,14 @@ pip install -e .
 
 ## Usage
 
+### Initialize (First Run)
+
+Download model weights and index labels:
+
+```bash
+chromatic-cli init
+```
+
 ### Ingest Dataset
 
 ```bash
