@@ -1,9 +1,12 @@
 """
 Chromatic Python CLI package.
 
-This module exposes high-level helpers that can be imported by notebooks or Lambda
-functions without pulling in the Typer CLI surface.
+This module exposes high-level functions that can be imported 
+by notebooks or Lambda or CLI functions.
 """
+import dotenv
+
+dotenv.load_dotenv()
 
 from .write import write_datasets 
 from .index import index_diffs

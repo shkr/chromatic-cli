@@ -179,7 +179,11 @@ async def index_single(
     and write label-distribution embeddings that match trainer/index.py.
     """
 
-    base_image, head_image, comparison_image = await download_images(row)
+    try:
+        base_image, head_image, comparison_image = await download_images(row)
+    except Exception as e:
+        print(f"Skipping {row['diff_id']}: failed to download images - {e}")
+        return 0
     items = await process_images_to_vectors_from_diff_data(
         base_image,
         head_image,

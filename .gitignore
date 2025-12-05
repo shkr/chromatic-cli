@@ -1,0 +1,14 @@
+*.pyc
+__pycache__
+datalake
+**/*.egg-info
+uv.lock
+**/*.env
+**/*.ipynb_checkpoints
+**/*.ipynb
+**/*.log
+scripts
+s3 
+cache
+output
+datasets

@@ -27,6 +27,7 @@ dependencies = [
   "transformers>=4.44",
   "pypdfium2>=4.30",
   "psycopg2-binary>=2.9",
+  "boto3>=1.28",
 ]
 
 [project.optional-dependencies]

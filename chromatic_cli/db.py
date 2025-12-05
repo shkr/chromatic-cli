@@ -456,6 +456,87 @@ def count_label_embeddings() -> int:
     return row["count"] if row else 0
 
 
+def get_unindexed_project_build_pairs() -> List[Tuple[str, str]]:
+    """
+    Get all (project_id, build_id) pairs that have rows in project_build
+    but haven't been indexed yet (base_embedding is NULL).
+    
+    Returns:
+        List of (project_id, build_id) tuples that need indexing.
+    """
+    conn = get_connection()
+    cursor = conn.execute(
+        """
+        SELECT DISTINCT project_id, build_id 
+        FROM project_build 
+        WHERE base_embedding IS NULL
+        ORDER BY project_id, build_id
+        """
+    )
+    return [(row["project_id"], row["build_id"]) for row in cursor.fetchall()]
+
+
+def get_project_build_pairs_with_status(project_id: Optional[str] = None, limit: int = 10) -> List[dict]:
+    """Get project/build pairs with their index status.
+    
+    Args:
+        project_id: Optional project ID to filter by
+        limit: Maximum number of pairs to return
+        
+    Returns:
+        List of dicts with project_id, build_id, and indexed (bool)
+    """
+    conn = get_connection()
+    if project_id is not None:
+        cursor = conn.execute(
+            """
+            SELECT project_id, build_id, 
+                   CASE WHEN base_embedding IS NOT NULL THEN 1 ELSE 0 END as indexed
+            FROM project_build 
+            WHERE project_id = ?
+            GROUP BY project_id, build_id
+            ORDER BY build_id DESC
+            LIMIT ?
+            """,
+            (project_id, limit),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            SELECT project_id, build_id,
+                   CASE WHEN base_embedding IS NOT NULL THEN 1 ELSE 0 END as indexed
+            FROM project_build 
+            GROUP BY project_id, build_id
+            ORDER BY project_id, build_id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+    return [
+        {
+            "project_id": row["project_id"],
+            "build_id": row["build_id"],
+            "indexed": bool(row["indexed"]),
+        }
+        for row in cursor.fetchall()
+    ]
+
+
+def count_unindexed_diffs(project_id: str, build_id: str) -> int:
+    """Count unindexed diffs for a specific project/build pair."""
+    conn = get_connection()
+    cursor = conn.execute(
+        """
+        SELECT COUNT(*) as count 
+        FROM project_build 
+        WHERE project_id = ? AND build_id = ? AND base_embedding IS NULL
+        """,
+        (project_id, build_id),
+    )
+    row = cursor.fetchone()
+    return row["count"] if row else 0
+
+
 def insert_project_build_embedding(
     project_id: str,
     build_id: int,

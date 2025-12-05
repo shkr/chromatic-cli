@@ -8,7 +8,7 @@ from rich import print_json
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 from dotenv import load_dotenv  
 load_dotenv()
-from .db import list_builds, list_diff_ids, list_projects, bulk_insert_label_embeddings, clear_label_embeddings, count_label_embeddings
+from .db import list_diff_ids, bulk_insert_label_embeddings, clear_label_embeddings, count_label_embeddings, get_unindexed_project_build_pairs, count_unindexed_diffs, get_project_build_pairs_with_status
 from .index import index_diffs
 from .write import write_datasets, write_json_record
 from .group import group_diffs
@@ -39,16 +39,71 @@ def write(
 
 @app.command()
 def index(
-    project_id: str = typer.Option(..., "--project"),
-    build_id: str = typer.Option(..., "--build"),
+    project_id: Optional[str] = typer.Option(None, "--project", help="Project ID to index. If not provided, indexes all unindexed pairs."),
+    build_id: Optional[str] = typer.Option(None, "--build", help="Build ID to index. If not provided, indexes all unindexed pairs."),
     temperature: float = typer.Option(
         0.05,
         "--temperature",
         help="Temperature for label distribution softmax (match trainer).",
     ),
+    limit: Optional[int] = typer.Option(None, "--limit", help="Maximum number of builds to index."),
 ) -> None:
-    stats = index_diffs(project_id=project_id, build_id=build_id, temperature=temperature)
-    print_json(data=stats)
+    """Index diffs to compute embeddings. If project/build not specified, indexes all unindexed pairs."""
+    # If both project_id and build_id are provided, index that specific pair
+    if project_id is not None and build_id is not None:
+        stats = index_diffs(project_id=project_id, build_id=build_id, temperature=temperature)
+        print_json(data=stats)
+        return
+    
+    # If only one is provided, that's an error
+    if project_id is not None or build_id is not None:
+        raise typer.BadParameter("Must provide both --project and --build, or neither to index all unindexed pairs.")
+    
+    # Get all unindexed (project_id, build_id) pairs
+    unindexed_pairs = get_unindexed_project_build_pairs()
+    
+    if not unindexed_pairs:
+        print_json(data={"message": "No unindexed project/build pairs found.", "processed": 0})
+        return
+    
+    # Apply limit to number of builds
+    if limit is not None:
+        unindexed_pairs = unindexed_pairs[:limit]
+    
+    # Count total unindexed diffs across all pairs
+    total_diffs = sum(count_unindexed_diffs(p, b) for p, b in unindexed_pairs)
+    
+    all_stats = []
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+    ) as progress:
+        # Create a task for overall progress
+        overall_task = progress.add_task(
+            f"[cyan]Indexing {len(unindexed_pairs)} project/build pairs ({total_diffs} diffs)...",
+            total=len(unindexed_pairs),
+        )
+        
+        for proj_id, bld_id in unindexed_pairs:
+            progress.update(overall_task, description=f"[cyan]Indexing {proj_id}/{bld_id}...")
+            stats = index_diffs(project_id=proj_id, build_id=bld_id, temperature=temperature)
+            all_stats.append({
+                "project_id": proj_id,
+                "build_id": bld_id,
+                **stats,
+            })
+            progress.update(overall_task, advance=1)
+    
+    total_processed = sum(s.get("processed", 0) for s in all_stats)
+    print_json(data={
+        "message": f"Indexed {len(unindexed_pairs)} project/build pairs",
+        "total_pairs": len(unindexed_pairs),
+        "total_diffs_processed": total_processed,
+        "details": all_stats,
+    })
 
 
 
@@ -64,29 +119,25 @@ def group(
     print_json(data=dendrogram_data)
 
 
-@app.command("list-projects")
-def list_projects_cmd() -> None:
-    """List all project IDs in the database."""
-    projects = list_projects()
-    print_json(data={"projects": projects, "count": len(projects)})
-
-
-@app.command("list-builds")
-def list_builds_cmd(
-    project_id: str = typer.Option(..., "--project"),
+@app.command("list")
+def list_cmd(
+    project_id: Optional[str] = typer.Option(None, "--project", help="Filter by project ID"),
+    limit: int = typer.Option(10, "--limit", help="Maximum number of pairs to return"),
 ) -> None:
-    """List all build IDs for a project."""
-    builds = list_builds(project_id)
-    print_json(data={"project_id": project_id, "builds": builds, "count": len(builds)})
+    """List project/build pairs with index status."""
+    pairs = get_project_build_pairs_with_status(project_id=project_id, limit=limit)
+    print_json(data={"pairs": pairs, "count": len(pairs)})
 
 
 @app.command("list-diffs")
 def list_diffs_cmd(
-    project_id: str = typer.Option(..., "--project"),
-    build_id: str = typer.Option(..., "--build"),
+    project_id: str = typer.Option(..., "--project", help="Project ID"),
+    build_id: str = typer.Option(..., "--build", help="Build ID"),
+    limit: int = typer.Option(10, "--limit", help="Maximum number of diffs to return"),
 ) -> None:
-    """List all diff IDs for a project and build."""
+    """List diff IDs for a project and build."""
     diffs = list_diff_ids(project_id, build_id)
+    diffs = diffs[:limit]
     print_json(data={"project_id": project_id, "build_id": build_id, "diffs": diffs, "count": len(diffs)})
 
 

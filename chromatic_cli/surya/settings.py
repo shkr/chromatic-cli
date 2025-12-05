@@ -6,7 +6,6 @@ from dotenv import find_dotenv
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
 from pathlib import Path
-from platformdirs import user_cache_dir
 
 
 class Settings(BaseSettings):
@@ -21,7 +20,7 @@ class Settings(BaseSettings):
     PARALLEL_DOWNLOAD_WORKERS: int = (
         10  # Number of workers for parallel model downloads
     )
-    MODEL_CACHE_DIR: str = str(Path(user_cache_dir("datalab")) / "models")
+    MODEL_CACHE_DIR: str = os.path.join(os.environ["CACHE_DIR"], "models")
     LOGLEVEL: str = "INFO"  # Logging level
 
     # Paths
@@ -96,7 +95,7 @@ class Settings(BaseSettings):
     RECOGNITION_PAD_VALUE: int = 255  # Should be 0 or 255
 
     # Layout
-    LAYOUT_MODEL_CHECKPOINT: str = "s3://layout/2025_02_18"
+    LAYOUT_MODEL_CHECKPOINT: str = "s3-private://transformer/layout"
     LAYOUT_IMAGE_SIZE: Dict = {"height": 768, "width": 768}
     LAYOUT_SLICE_MIN: Dict = {
         "height": 1500,
